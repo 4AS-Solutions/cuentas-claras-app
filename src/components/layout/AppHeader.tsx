@@ -11,6 +11,8 @@ import {
   LayoutDashboard,
   Receipt,
   CreditCard,
+  Tags,
+  Wallet,
   LogOut,
   Menu,
   X,
@@ -53,6 +55,16 @@ export default function AppHeader() {
       href: "/cards",
       icon: CreditCard,
     },
+    {
+      name: "Categorías",
+      href: "/categories",
+      icon: Tags,
+    },
+    {
+      name: "Métodos",
+      href: "/payment-methods",
+      icon: Wallet,
+    },
   ];
 
   return (
@@ -79,21 +91,30 @@ export default function AppHeader() {
 
               {nav.map((item) => {
                 const Icon = item.icon;
-                const active = pathname === item.href;
+                const active =
+                  item.href === "/"
+                    ? pathname === "/"
+                    : pathname.startsWith(item.href);
 
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex items-center gap-2 text-sm font-medium transition
-                    ${
-                      active
-                        ? "text-white"
-                        : "text-white/80 hover:text-white"
-                    }`}
+                    className={`
+                      relative flex items-center gap-2 text-sm font-medium transition px-1 pb-1
+                      ${
+                        active
+                          ? "text-white"
+                          : "text-white/80 hover:text-white"
+                      }
+                    `}
                   >
                     <Icon size={18} />
                     {item.name}
+
+                    {active && (
+                      <span className="absolute -bottom-2 left-0 w-full h-[2px] bg-white rounded-full transition-all" />
+                    )}
                   </Link>
                 );
               })}
@@ -172,7 +193,10 @@ export default function AppHeader() {
 
             {nav.map((item) => {
               const Icon = item.icon;
-              const active = pathname === item.href;
+              const active =
+                item.href === "/"
+                  ? pathname === "/"
+                  : pathname.startsWith(item.href);
 
               return (
                 <Link

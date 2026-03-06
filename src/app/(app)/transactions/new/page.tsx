@@ -11,9 +11,30 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 import Textarea from "@/components/ui/Textarea";
 
-type Category = { id: string; name: string };
-type PaymentMethod = { id: string; name: string; is_card: boolean };
-type CardType = { id: string; name: string; brand: string };
+import {
+  ArrowDownCircle,
+  ArrowUpCircle,
+  CreditCard,
+  Wallet,
+} from "lucide-react";
+
+type Category = {
+  id: string;
+  name: string;
+  kind: "expense" | "income";
+};
+
+type PaymentMethod = {
+  id: string;
+  name: string;
+  is_card: boolean;
+};
+
+type CardType = {
+  id: string;
+  name: string;
+  brand: string;
+};
 
 export default function NewTransactionPage() {
 
@@ -23,7 +44,7 @@ export default function NewTransactionPage() {
 
   const [kind, setKind] = useState<"expense" | "income">("expense");
 
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState("0.00");
   const [currency, setCurrency] = useState<"USD" | "MXN">("USD");
 
   const [occurredAt, setOccurredAt] = useState(() => {
@@ -47,6 +68,10 @@ export default function NewTransactionPage() {
     () => methods.find((m) => m.id === paymentMethodId) ?? null,
     [methods, paymentMethodId]
   );
+
+  const filteredCategories = useMemo(() => {
+    return categories.filter((c) => c.kind === kind);
+  }, [categories, kind]);
 
   const cardType =
     selectedMethod?.name.toLowerCase().includes("credit")
@@ -76,17 +101,17 @@ export default function NewTransactionPage() {
 
         supabase
           .from("categories")
-          .select("id,name")
+          .select("id,name,kind")
           .eq("user_id", user.id)
           .eq("is_active", true)
-          .order("name"),
+          .order("sort_order"),
 
         supabase
           .from("payment_methods")
           .select("id,name,is_card")
           .eq("user_id", user.id)
           .eq("is_active", true)
-          .order("name"),
+          .order("sort_order"),
 
         supabase
           .from("cards")
@@ -110,8 +135,10 @@ export default function NewTransactionPage() {
 
     e.preventDefault();
 
-    if (!amount) {
-      alert("Ingresa el monto");
+    const amt = Number(amount.replace(/,/g, ""));
+
+    if (!amt || amt <= 0) {
+      alert("Ingresa un monto válido");
       return;
     }
 
@@ -121,25 +148,19 @@ export default function NewTransactionPage() {
     }
 
     if (!paymentMethodId) {
-      alert("Selecciona un método de pago");
-      return;
-    }
-
-    const amt = Number(amount);
-
-    if (!Number.isFinite(amt) || amt <= 0) {
-      alert("Monto inválido");
+      alert("Selecciona método de pago");
       return;
     }
 
     setLoading(true);
 
-    const card_id = selectedMethod?.is_card ? cardId || null : null;
-
     const { data } = await supabase.auth.getSession();
     const user = data.session?.user;
 
+    const card_id = selectedMethod?.is_card ? cardId || null : null;
+
     const { error } = await supabase.from("transactions").insert({
+
       user_id: user?.id,
       kind,
       amount: amt,
@@ -149,6 +170,7 @@ export default function NewTransactionPage() {
       category_id: categoryId,
       payment_method_id: paymentMethodId,
       card_id,
+
     });
 
     setLoading(false);
@@ -162,27 +184,41 @@ export default function NewTransactionPage() {
 
   }
 
+  function handleAmountChange(value: string) {
+
+    const digits = value.replace(/\D/g, "");
+
+    if (!digits) {
+      setAmount("0.00");
+      return;
+    }
+
+    const number = Number(digits) / 100;
+
+    setAmount(formatCurrency(number));
+  }
+
+  function formatCurrency(value: number) {
+    return value.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+
   return (
 
     <main className="min-h-screen bg-background">
 
       <PageContainer>
 
-        {/* HEADER */}
-
-        <div className="mb-6">
-
-          <h1 className="text-2xl font-semibold">
+        <div className="mb-4">
+          <h1 className="text-3xl font-bold text-slate-800">
             Nuevo movimiento
           </h1>
-
-          <p className="text-sm text-gray-500">
+          <p className="mt-1 text-slate-500">
             Registra un ingreso o gasto
           </p>
-
         </div>
-
-        {/* FORM */}
 
         <Card className="max-w-xl space-y-6">
 
@@ -194,25 +230,27 @@ export default function NewTransactionPage() {
 
               <button
                 type="button"
-                className={`rounded-xl p-3 font-semibold transition ${
+                onClick={() => setKind("expense")}
+                className={`flex items-center justify-center gap-2 rounded-xl p-3 font-semibold transition ${
                   kind === "expense"
                     ? "bg-white shadow text-blue-700"
                     : "text-slate-500"
                 }`}
-                onClick={() => setKind("expense")}
               >
+                <ArrowDownCircle size={18}/>
                 Gasto
               </button>
 
               <button
                 type="button"
-                className={`rounded-xl p-3 font-semibold transition ${
+                onClick={() => setKind("income")}
+                className={`flex items-center justify-center gap-2 rounded-xl p-3 font-semibold transition ${
                   kind === "income"
                     ? "bg-white shadow text-emerald-700"
                     : "text-slate-500"
                 }`}
-                onClick={() => setKind("income")}
               >
+                <ArrowUpCircle size={18}/>
                 Ingreso
               </button>
 
@@ -220,51 +258,74 @@ export default function NewTransactionPage() {
 
             {/* AMOUNT */}
 
-            <div className="grid grid-cols-3 gap-2">
+            <div>
 
-              <Input
-                className="col-span-2"
-                label="Monto *"
-                placeholder="0.00"
-                inputMode="decimal"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                required
-              />
+              <p className="text-sm text-gray-500 mb-1">
+                Monto
+              </p>
 
-              <Select
-                label="Moneda"
-                value={currency}
-                onChange={(e) => setCurrency(e.target.value as any)}
-              >
-                <option value="USD">USD</option>
-                <option value="MXN">MXN</option>
-              </Select>
+              <div className="flex gap-2 items-end">
+
+                <div className="relative flex-1">
+
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 font-semibold">
+                    $
+                  </span>
+
+                  <input
+                    className="
+                    w-full
+                    pl-7 pr-3
+                    h-[46px]
+                    rounded-xl
+                    border
+                    bg-white
+                    text-lg
+                    font-semibold
+                    outline-none
+                    focus:ring-2
+                    focus:ring-emerald-400
+                    "
+                    value={amount}
+                    inputMode="numeric"
+                    onChange={(e) => handleAmountChange(e.target.value)}
+                  />
+
+                </div>
+
+                <Select
+                  className="w-[110px] md:w-[120px]"
+                  value={currency}
+                  onChange={(e) => setCurrency(e.target.value as any)}
+                >
+                  <option value="USD">USD</option>
+                  <option value="MXN">MXN</option>
+                </Select>
+
+              </div>
 
             </div>
 
             {/* DATE */}
 
             <Input
-              label="Fecha *"
+              label="Fecha"
               type="datetime-local"
               value={occurredAt}
               onChange={(e) => setOccurredAt(e.target.value)}
-              required
             />
 
             {/* CATEGORY */}
 
             <Select
-              label="Categoría *"
+              label="Categoría"
               value={categoryId}
               onChange={(e) => setCategoryId(e.target.value)}
-              required
             >
 
-              <option value="">Selecciona una categoría</option>
+              <option value="">Selecciona categoría</option>
 
-              {categories.map((c) => (
+              {filteredCategories.map((c) => (
                 <option key={c.id} value={c.id}>
                   {c.name}
                 </option>
@@ -272,16 +333,15 @@ export default function NewTransactionPage() {
 
             </Select>
 
-            {/* PAYMENT METHOD */}
+            {/* METHOD */}
 
             <Select
-              label="Método de pago *"
+              label="Método de pago"
               value={paymentMethodId}
               onChange={(e) => {
                 setPaymentMethodId(e.target.value);
                 setCardId("");
               }}
-              required
             >
 
               <option value="">Selecciona método</option>
@@ -319,7 +379,7 @@ export default function NewTransactionPage() {
             {/* NOTE */}
 
             <Textarea
-              label="Nota (opcional)"
+              label="Nota"
               rows={3}
               placeholder="Ej. Starbucks, Uber..."
               value={note}
@@ -347,10 +407,6 @@ export default function NewTransactionPage() {
               </Button>
 
             </div>
-
-            <p className="text-xs text-gray-400">
-              Tip: puedes editar el movimiento después si necesitas.
-            </p>
 
           </form>
 

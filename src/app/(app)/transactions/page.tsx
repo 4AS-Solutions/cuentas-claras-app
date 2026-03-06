@@ -9,7 +9,13 @@ import PageContainer from "@/components/ui/PageContainer";
 import Card from "@/components/ui/Card";
 import Button from "@/components/ui/Button";
 
-import { PlusCircle } from "lucide-react";
+import {
+  PlusCircle,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  CreditCard,
+  Wallet,
+} from "lucide-react";
 
 type Tx = {
   id: string;
@@ -28,6 +34,26 @@ function money(v: number) {
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
   });
+}
+
+function groupByDate(items: Tx[]) {
+  const groups: Record<string, Tx[]> = {};
+
+  items.forEach((tx) => {
+    const date = new Date(tx.occurred_at);
+
+    const label = date.toLocaleDateString("es-MX", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+
+    if (!groups[label]) groups[label] = [];
+
+    groups[label].push(tx);
+  });
+
+  return Object.entries(groups);
 }
 
 export default function TransactionsPage() {
@@ -60,7 +86,7 @@ export default function TransactionsPage() {
         `)
         .is("deleted_at", null)
         .order("occurred_at", { ascending: false })
-        .limit(100);
+        .limit(200);
 
       if (error) {
         alert(error.message);
@@ -86,21 +112,30 @@ export default function TransactionsPage() {
     load();
   }, [router]);
 
+  const grouped = groupByDate(items);
+
   return (
     <main className="min-h-screen bg-background">
       <PageContainer>
 
         {/* HEADER */}
+
         <div className="flex items-center justify-between mb-6">
 
           <div>
-            <h1 className="text-2xl font-semibold">
+            <h1 className="text-3xl font-bold text-slate-800">
               Movimientos
             </h1>
 
-            <p className="text-sm text-gray-500">
+            <p className="mt-1 text-slate-500">
               Historial de ingresos y gastos
             </p>
+
+            {!loading && (
+              <p className="text-xs text-slate-400 mt-1">
+                {items.length} movimientos registrados
+              </p>
+            )}
           </div>
 
           <Button
@@ -108,32 +143,36 @@ export default function TransactionsPage() {
             mobileIconOnly
             onClick={() => router.push("/transactions/new")}
           >
-          Nuevo movimiento
+            Nuevo movimiento
           </Button>
 
         </div>
 
         {/* STATES */}
+
         {loading ? (
 
           <Card>
-            <p className="opacity-70">Cargando...</p>
+            <p className="opacity-70">Cargando movimientos...</p>
           </Card>
 
         ) : items.length === 0 ? (
 
-          <Card>
+          <Card className="text-center py-10 space-y-4">
 
-            <p className="opacity-70">
-              Aún no hay movimientos.
+            <p className="text-slate-600 font-medium">
+              Aún no tienes movimientos
+            </p>
+
+            <p className="text-sm text-slate-400">
+              Empieza registrando tu primer ingreso o gasto
             </p>
 
             <Button
               icon={<PlusCircle size={18} />}
-              mobileIconOnly
               onClick={() => router.push("/transactions/new")}
             >
-            Registrar el primero
+              Registrar el primero
             </Button>
 
           </Card>
@@ -142,112 +181,133 @@ export default function TransactionsPage() {
 
           <Card className="p-0 overflow-hidden">
 
-            <ul className="divide-y">
+            <div className="divide-y">
 
-              {items.map((tx) => {
+              {grouped.map(([date, txs]) => (
 
-                const category =
-                  Array.isArray(tx.categories)
-                    ? tx.categories[0]?.name
-                    : tx.categories?.name;
+                <div key={date}>
 
-                return (
+                  {/* DATE HEADER */}
 
-                  <li
-                    key={tx.id}
-                    className="p-5 hover:bg-slate-50 transition"
-                  >
+                  <div className="px-5 py-2 text-xs font-semibold text-slate-500 bg-slate-50">
+                    {date}
+                  </div>
 
-                    <div className="flex items-start justify-between gap-4">
+                  {txs.map((tx) => {
 
-                      {/* LEFT */}
-                      <div className="min-w-0">
+                    const category =
+                      Array.isArray(tx.categories)
+                        ? tx.categories[0]?.name
+                        : tx.categories?.name;
 
-                        <div className="flex items-center gap-2 mb-1">
+                    const Icon =
+                      tx.kind === "expense"
+                        ? ArrowDownCircle
+                        : ArrowUpCircle;
 
-                          <span
-                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    return (
+
+                      <div
+                        key={tx.id}
+                        onClick={() =>
+                          router.push(`/transactions/${tx.id}`)
+                        }
+                        className={`p-5 flex items-start justify-between gap-4 cursor-pointer hover:bg-slate-50 transition border-l-4 ${
+                          tx.kind === "expense"
+                            ? "border-blue-400"
+                            : "border-emerald-400"
+                        }`}
+                      >
+
+                        {/* LEFT */}
+
+                        <div className="flex items-start gap-3 min-w-0">
+
+                          <div
+                            className={`mt-1 ${
                               tx.kind === "expense"
-                                ? "bg-blue-50 text-blue-700"
-                                : "bg-emerald-50 text-emerald-700"
+                                ? "text-blue-500"
+                                : "text-emerald-500"
+                            }`}
+                          >
+                            <Icon size={18} />
+                          </div>
+
+                          <div className="min-w-0">
+
+                            <p className="font-medium truncate">
+                              {tx.note ?? "Movimiento"}
+                            </p>
+
+                            {category && (
+                              <p className="text-xs text-slate-500">
+                                {category}
+                              </p>
+                            )}
+
+                            {/* payment */}
+
+                            {tx.cards ? (
+                              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                <CreditCard size={12} />
+                                {tx.cards.name}
+                                {tx.cards.last4 &&
+                                  ` •••• ${tx.cards.last4}`}
+                              </p>
+                            ) : tx.payment_methods ? (
+                              <p className="text-xs text-slate-400 mt-1 flex items-center gap-1">
+                                <Wallet size={12} />
+                                {tx.payment_methods.name}
+                              </p>
+                            ) : null}
+
+                          </div>
+
+                        </div>
+
+                        {/* RIGHT */}
+
+                        <div className="text-right shrink-0">
+
+                          <p
+                            className={`text-lg font-semibold ${
+                              tx.kind === "expense"
+                                ? "text-blue-700"
+                                : "text-emerald-700"
                             }`}
                           >
                             {tx.kind === "expense"
-                              ? "Gasto"
-                              : "Ingreso"}
-                          </span>
+                              ? "-"
+                              : "+"}
+                            ${money(tx.amount)} {tx.currency}
+                          </p>
 
-                          <p className="font-medium truncate">
-                            {tx.note ?? "Movimiento"}
+                          <p className="text-xs text-slate-400 mt-1">
+                            {tx.kind === "expense"
+                              ? "Salida"
+                              : "Entrada"}
                           </p>
 
                         </div>
 
-                        {category && (
-                          <p className="text-xs text-slate-500">
-                            {category}
-                          </p>
-                        )}
-
-                        {/* payment */}
-                        {tx.cards ? (
-                          <p className="text-xs text-slate-500 mt-1">
-                            {tx.cards.name}
-                            {tx.cards.last4 &&
-                              ` •••• ${tx.cards.last4}`}
-                          </p>
-                        ) : tx.payment_methods ? (
-                          <p className="text-xs text-slate-500 mt-1">
-                            {tx.payment_methods.name}
-                          </p>
-                        ) : null}
-
-                        <p className="text-xs text-gray-400 mt-1">
-                          {new Date(
-                            tx.occurred_at
-                          ).toLocaleString()}
-                        </p>
-
                       </div>
 
-                      {/* RIGHT */}
-                      <div className="text-right shrink-0">
+                    );
 
-                        <p
-                          className={`text-lg font-semibold ${
-                            tx.kind === "expense"
-                              ? "text-blue-700"
-                              : "text-emerald-700"
-                          }`}
-                        >
-                          {tx.kind === "expense"
-                            ? "-"
-                            : "+"}
-                          {tx.currency} {money(tx.amount)}
-                        </p>
+                  })}
 
-                        <p className="text-xs text-gray-400 mt-1">
-                          {tx.kind === "expense"
-                            ? "Salida"
-                            : "Entrada"}
-                        </p>
+                </div>
 
-                      </div>
+              ))}
 
-                    </div>
-
-                  </li>
-
-                );
-              })}
-
-            </ul>
+            </div>
 
           </Card>
 
         )}
 
         {/* FOOTER */}
+
         <div className="mt-8">
 
           <Link

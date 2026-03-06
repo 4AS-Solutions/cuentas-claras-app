@@ -10,7 +10,12 @@ import Input from "@/components/ui/Input";
 import Select from "@/components/ui/Select";
 
 import FinanceCard from "@/components/cards/FinanceCard";
-import { PlusCircle } from "lucide-react";
+
+import {
+  PlusCircle,
+  CreditCard,
+  X,
+} from "lucide-react";
 
 type CardType = {
   id: string;
@@ -91,35 +96,54 @@ export default function CardsPage() {
 
           <div>
 
-            <h1 className="text-2xl font-semibold">
+            <h1 className="text-3xl font-bold text-slate-800">
               Mis tarjetas
             </h1>
 
-            <p className="text-sm text-gray-500">
-              Administra tus tarjetas
+            <p className="mt-1 text-slate-500">
+              Administra tus tarjetas para registrar pagos
             </p>
 
           </div>
 
           <Button
             icon={<PlusCircle size={18} />}
-            mobileIconOnly
             onClick={() => setShowForm(true)}
           >
-          Nueva tarjeta
+            Nueva tarjeta
           </Button>
 
         </div>
 
-        {/* EMPTY */}
+        {/* EMPTY STATE */}
 
         {cards.length === 0 && (
 
-          <Card className="text-center">
+          <Card className="text-center py-10 space-y-3">
 
-            <p className="opacity-70">
+            <CreditCard
+              size={32}
+              className="mx-auto text-slate-400"
+            />
+
+            <p className="font-medium text-slate-700">
               Aún no tienes tarjetas registradas
             </p>
+
+            <p className="text-sm text-slate-500">
+              Agrega tu primera tarjeta para registrar pagos más rápido
+            </p>
+
+            <div className="pt-2">
+
+              <Button
+                icon={<PlusCircle size={18} />}
+                onClick={() => setShowForm(true)}
+              >
+                Agregar tarjeta
+              </Button>
+
+            </div>
 
           </Card>
 
@@ -127,7 +151,7 @@ export default function CardsPage() {
 
         {/* GRID */}
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
 
           {cards.map((card) => (
 
@@ -151,16 +175,34 @@ export default function CardsPage() {
 
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
 
-          <Card className="w-full max-w-md">
+          <Card className="w-full max-w-md relative">
+
+            {/* CLOSE BUTTON */}
+
+            <button
+              onClick={() => setShowForm(false)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-slate-600"
+            >
+              <X size={20}/>
+            </button>
 
             <form
               onSubmit={createCard}
               className="space-y-5"
             >
 
-              <h2 className="text-lg font-semibold">
-                Nueva tarjeta
-              </h2>
+              <div className="flex items-center gap-2 mb-2">
+
+                <CreditCard
+                  size={18}
+                  className="text-slate-500"
+                />
+
+                <h2 className="text-lg font-semibold">
+                  Nueva tarjeta
+                </h2>
+
+              </div>
 
               <Input
                 label="Banco"
@@ -175,15 +217,25 @@ export default function CardsPage() {
                 value={brand}
                 onChange={(e) => setBrand(e.target.value)}
               >
-                <option value="credit">Credit</option>
-                <option value="debit">Debit</option>
+                <option value="credit">
+                  Crédito
+                </option>
+
+                <option value="debit">
+                  Débito
+                </option>
               </Select>
 
               <Input
                 label="Últimos 4 dígitos (opcional)"
                 maxLength={4}
+                inputMode="numeric"
                 value={last4}
-                onChange={(e) => setLast4(e.target.value)}
+                onChange={(e) =>
+                  setLast4(
+                    e.target.value.replace(/\D/g, "")
+                  )
+                }
               />
 
               <div>
@@ -194,14 +246,14 @@ export default function CardsPage() {
 
                 <input
                   type="color"
-                  className="w-full h-10 mt-2"
+                  className="w-full h-10 mt-2 rounded-lg border"
                   value={color}
                   onChange={(e) => setColor(e.target.value)}
                 />
 
               </div>
 
-              <div className="flex gap-3">
+              <div className="flex gap-3 pt-2">
 
                 <Button
                   type="submit"

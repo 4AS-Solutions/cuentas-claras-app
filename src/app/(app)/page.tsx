@@ -57,6 +57,7 @@ function money(v: number) {
 }
 
 export default function DashboardPage() {
+
   const router = useRouter();
 
   const [recent, setRecent] = useState<Tx[]>([]);
@@ -71,16 +72,47 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    checkSession();
-    loadData();
+    init();
   }, []);
+
+  async function init() {
+    const valid = await checkSession();
+    if (!valid) return;
+
+    const onboardingNeeded = await checkOnboarding();
+    if (onboardingNeeded) return;
+
+    loadData();
+  }
 
   async function checkSession() {
     const { data } = await supabase.auth.getSession();
-    if (!data.session) router.push("/login");
+
+    if (!data.session) {
+      router.push("/auth/login");
+      return false;
+    }
+
+    return true;
+  }
+
+  async function checkOnboarding() {
+
+    const { data } = await supabase
+      .from("categories")
+      .select("id")
+      .limit(1);
+
+    if (!data || data.length === 0) {
+      router.push("/onboarding");
+      return true;
+    }
+
+    return false;
   }
 
   async function loadData() {
+
     const { data } = await supabase
       .from("transactions")
       .select(`
@@ -94,7 +126,7 @@ export default function DashboardPage() {
 
     const tx = data as Tx[];
 
-    setRecent(tx.slice(0, 3));
+    setRecent(tx.slice(0, 5));
 
     let income = 0;
     let expense = 0;
@@ -103,12 +135,14 @@ export default function DashboardPage() {
     const monthMap: Record<string, number> = {};
 
     tx.forEach((t) => {
+
       const amt = Number(t.amount);
 
       if (t.kind === "income") income += amt;
       else expense += amt;
 
       if (t.kind === "expense") {
+
         const rawCat = (t as any).categories;
 
         const cat =
@@ -121,14 +155,14 @@ export default function DashboardPage() {
         categoryMap[catName] =
           (categoryMap[catName] ?? 0) + amt;
 
-        const month = new Date(t.occurred_at).toLocaleString(
-          "default",
-          { month: "short" }
-        );
+        const month = new Date(t.occurred_at)
+          .toLocaleString("default", { month: "short" });
 
         monthMap[month] =
           (monthMap[month] ?? 0) + amt;
+
       }
+
     });
 
     setKpis({
@@ -137,121 +171,153 @@ export default function DashboardPage() {
       balance: income - expense,
     });
 
-    const categoryData = Object.entries(categoryMap).map(
-      ([name, value]) => ({
-        name,
-        value,
-      })
-    );
+    const categoryData =
+      Object.entries(categoryMap)
+        .map(([name, value]) => ({
+          name,
+          value,
+        }))
+        .sort((a, b) => b.value - a.value);
 
     setCategoryChart(categoryData);
 
-    const monthData = Object.entries(monthMap).map(
-      ([name, value]) => ({
+    const monthData =
+      Object.entries(monthMap).map(([name, value]) => ({
         name,
         value,
-      })
-    );
+      }));
 
     setMonthlyChart(monthData);
 
     if (categoryData.length > 0) {
-      const biggest = categoryData.reduce((a, b) =>
-        a.value > b.value ? a : b
-      );
+
+      const biggest = categoryData[0];
 
       setInsight(
-        `Tu mayor gasto es en ${biggest.name} ($${money(
-          biggest.value
-        )})`
+        `Este mes gastaste más en ${biggest.name} ($${money(biggest.value)})`
       );
+
     }
+
   }
 
   return (
+
     <main className="min-h-screen bg-background">
+
       <PageContainer>
 
-        {/* KPIs */}
-        <div className="grid md:grid-cols-3 gap-5 mb-8">
+        {/* HEADER */}
+        <div className="flex items-center justify-between mb-6">
 
-          <Card>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">
-                  Ingresos
-                </p>
-                <p className="text-3xl font-bold text-emerald-600 mt-1">
-                  ${money(kpis.income)}
-                </p>
-              </div>
+          <div>
+            <h1 className="text-3xl font-bold text-slate-800">
+              Dashboard
+            </h1>
 
-              <div className="bg-emerald-50 p-3 rounded-xl">
-                <TrendingUp className="text-emerald-600" />
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">
-                  Gastos
-                </p>
-                <p className="text-3xl font-bold text-blue-600 mt-1">
-                  ${money(kpis.expense)}
-                </p>
-              </div>
-
-              <div className="bg-blue-50 p-3 rounded-xl">
-                <TrendingDown className="text-blue-600" />
-              </div>
-            </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-gray-500">
-                  Balance
-                </p>
-                <p className="text-3xl font-bold mt-1">
-                  ${money(kpis.balance)}
-                </p>
-              </div>
-
-              <div className="bg-slate-100 p-3 rounded-xl">
-                <Wallet className="text-gray-700" />
-              </div>
-            </div>
-          </Card>
-
-        </div>
-
-        {/* ACTION */}
-        <div className="flex gap-4 mb-8">
+            <p className="mt-1 text-slate-500">
+              Resumen de tu actividad financiera
+            </p>
+          </div>
 
           <Button
             icon={<PlusCircle size={18} />}
             mobileIconOnly
             onClick={() => router.push("/transactions/new")}
           >
-          Nuevo movimiento
+            Nuevo movimiento
           </Button>
+
+        </div>
+
+        {/* KPIs */}
+        <div className="grid md:grid-cols-3 gap-5 mb-8">
+
+          {/* INGRESOS */}
+          <Card className="border-l-4 border-l-emerald-500 hover:shadow-md transition">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+                <p className="text-sm text-slate-500">
+                  Ingresos
+                </p>
+
+                <p className="text-3xl font-bold text-emerald-600 mt-1">
+                  ${money(kpis.income)}
+                </p>
+              </div>
+
+              <TrendingUp className="text-emerald-500" />
+
+            </div>
+
+          </Card>
+
+
+          {/* GASTOS */}
+          <Card className="border-l-4 border-l-blue-500 hover:shadow-md transition">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+                <p className="text-sm text-slate-500">
+                  Gastos
+                </p>
+
+                <p className="text-3xl font-bold text-blue-600 mt-1">
+                  ${money(kpis.expense)}
+                </p>
+              </div>
+
+              <TrendingDown className="text-blue-500" />
+
+            </div>
+
+          </Card>
+
+
+          {/* BALANCE */}
+          <Card className="border-l-4 border-l-slate-400 hover:shadow-md transition">
+
+            <div className="flex items-center justify-between">
+
+              <div>
+                <p className="text-sm text-slate-500">
+                  Balance
+                </p>
+
+                <p
+                  className={`text-3xl font-bold mt-1 ${
+                    kpis.balance >= 0
+                      ? "text-emerald-600"
+                      : "text-red-500"
+                  }`}
+                >
+                  ${money(kpis.balance)}
+                </p>
+              </div>
+
+              <Wallet className="text-slate-500" />
+
+            </div>
+
+          </Card>
 
         </div>
 
         {/* INSIGHT */}
         {insight && (
-          <Card className="mb-6 bg-emerald-50 text-emerald-700">
+
+          <Card className="mb-8 bg-emerald-50 text-emerald-700">
             {insight}
           </Card>
+
         )}
 
         {/* CHARTS */}
         <div className="grid md:grid-cols-2 gap-6 mb-8">
 
-          {/* PIE */}
           <Card>
             <h2 className="font-semibold text-lg mb-5">
               Gastos por categoría
@@ -276,9 +342,7 @@ export default function DashboardPage() {
                           <Cell
                             key={index}
                             fill={
-                              COLORS[
-                                index % COLORS.length
-                              ]
+                              COLORS[index % COLORS.length]
                             }
                           />
                         ))}
@@ -299,9 +363,7 @@ export default function DashboardPage() {
                           className="w-3 h-3 rounded-full"
                           style={{
                             background:
-                              COLORS[
-                                i % COLORS.length
-                              ],
+                              COLORS[i % COLORS.length],
                           }}
                         />
                         {c.name}
@@ -317,7 +379,6 @@ export default function DashboardPage() {
             )}
           </Card>
 
-          {/* BAR */}
           <Card>
             <h2 className="font-semibold text-lg mb-5">
               Gastos por mes
@@ -357,12 +418,9 @@ export default function DashboardPage() {
               Movimientos recientes
             </h2>
 
-
-
             <Button
               icon={<List size={18} />}
               variant="secondary"
-              mobileIconOnly
               onClick={() =>
                 router.push("/transactions")
               }
@@ -372,47 +430,62 @@ export default function DashboardPage() {
 
           </div>
 
-          <div className="divide-y">
+          {recent.length === 0 ? (
 
-            {recent.map((tx) => (
+            <p className="text-sm text-gray-500">
+              Aún no tienes movimientos registrados.
+            </p>
 
-              <div
-                key={tx.id}
-                className="py-4 flex items-center justify-between"
-              >
+          ) : (
 
-                <div>
-                  <p className="font-medium">
-                    {tx.note || "Movimiento"}
+            <div className="divide-y">
+
+              {recent.map((tx) => (
+
+                <div
+                  key={tx.id}
+                  className="py-4 flex items-center justify-between"
+                >
+
+                  <div>
+
+                    <p className="font-medium">
+                      {tx.note || "Movimiento"}
+                    </p>
+
+                    <p className="text-sm text-gray-500">
+                      {new Date(
+                        tx.occurred_at
+                      ).toLocaleDateString()}
+                    </p>
+
+                  </div>
+
+                  <p
+                    className={`font-semibold text-lg ${
+                      tx.kind === "expense"
+                        ? "text-blue-600"
+                        : "text-emerald-600"
+                    }`}
+                  >
+                    {tx.kind === "expense" ? "-" : "+"}$
+                    {money(tx.amount)}
                   </p>
 
-                  <p className="text-sm text-gray-500">
-                    {new Date(
-                      tx.occurred_at
-                    ).toLocaleDateString()}
-                  </p>
                 </div>
 
-                <p
-                  className={`font-semibold text-lg ${
-                    tx.kind === "expense"
-                      ? "text-blue-600"
-                      : "text-emerald-600"
-                  }`}
-                >
-                  {tx.kind === "expense" ? "-" : "+"}$
-                  {money(tx.amount)}
-                </p>
+              ))}
 
-              </div>
+            </div>
 
-            ))}
-
-          </div>
+          )}
 
         </Card>
 
       </PageContainer>
+
     </main>
+
   );
+
 }
