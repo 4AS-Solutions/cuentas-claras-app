@@ -1,14 +1,21 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { Inter } from "next/font/google";
+
 
 const inter = Inter({ subsets: ["latin"] });
 
 
-export const metadata = {
+export const metadata: Metadata = {
   title: "Cuentas Claras",
   description: "Controla tus ingresos y gastos con claridad",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.png",
+  }
+};
+
+export const viewport: Viewport = {
   themeColor: "#0f172a",
 };
 
